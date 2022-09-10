@@ -62,12 +62,12 @@ Project is created with:
 
 ## Setup
 Project was created in Xcode as an iOS app with a storyboard interface using Swift language.
-[Add Firebase to your Apple project](https://firebase.google.com/docs/ios/setup)
+[Add Firebase to your Apple project](https://firebase.google.com/docs/ios/setup).
 * Demonstrates various methods of [installing Firebase in your Apple app](https://firebase.google.com/docs/ios/installation-methods)
 
 
 ## The Game
-The game UI is designed using a 3x3 grid of buttons. Each time the board is tapped, the title of that button is set to the current current string ("X" or "O").
+The game UI is designed using a 3x3 grid of buttons. Each time the board is tapped, the title of that button is set to the current string ("X" or "O").
 
 ```swift
 var board = [UIButton]()
@@ -154,17 +154,16 @@ func resultAlert(title: String) {
 
 ## Multiplayer
 For the most intricate part of this game I want to detail a few things:
+* Info stored in database
 * How to use Firebase (for those interested in developing)
 * Design choices I made
-	* Info to store in database
 	* Potential problems
 		* Rematch
 		* Snapshot listener
-		* Player switching
 	* Finding previous games
 
 ### Information stored in database
-One Game object is stored in a document in a the game collection for every game between two people.
+One Game object is stored in each document.
 ```swift
 import UIKit
 struct Game: Codable {
@@ -238,11 +237,11 @@ I'll yet again reiterate the importance of how the database is queried. In a lin
 ```swift
 try FirebaseReference(.Game).document(self.game.id).setData(from: self.game)
 ```
-Several things of importance going on here. First, notice how I was able to set the data on the document. The game objects is a subclass of codable. Cloud Firestore converts the objects to supported data types.
+Several things of importance are going on here. First, notice how I was able to set the data on the document. The game object is a subclass of codable. Cloud Firestore converts the objects to supported data types.
 
-The variable I use to name and parse my game documents is a variable named id, it is a truncated uuidString. If the document with the given id does not exist, which it shouldn't it will be created. If the document does exist, ***its contents will be overwritten with the newly provided data***, unless you specify that the data should be merged into the existing document. You can read more about adding data [here.](https://firebase.google.com/docs/firestore/manage-data/add-data)
+The variable I use to name and parse my game documents is a variable named id, it is a truncated uuidString. If the document with the given id does not exist, which it shouldn't, it will be created. If the document does exist, ***its contents will be overwritten with the newly provided data***, unless you specify that the data should be merged into the existing document. You can read more about adding data [here.](https://firebase.google.com/docs/firestore/manage-data/add-data)
 
-So there is now have a joinable game in the database, what now? There needs to be an organized way to join games, whether the player would like to join a friend or auto-matchmake.
+So there is now a joinable game in the database, what now? There needs to be an organized way to join games, whether the player would like to join a friend or auto-matchmake.
 
 If a gameId is provided when a player presses 'Join', the following line will run:
 ```swift
@@ -397,15 +396,15 @@ sequenceDiagram
 
 Now that both players are in a game together, they need to play! This is where it becomes important what type of database is used, what data is stored, and how data is [read from the database](https://firebase.google.com/docs/firestore/query-data/get-data).
 
-If specific functions are used inefficiently, incorrectly, or not at all, it would be a huge drain on battery. One of my objectives was to keep the battery usage and app size low. In order to do this, I had to ensure that the database was being used as efficiently as possible. and so it boiled down to one question, ***after one player makes a move, how is the other player's device notified?***
+If specific functions are used inefficiently, incorrectly, or not at all, there could potentially be excess battery drain. One of my objectives was to keep the battery usage and app size low. In order to do this, I had to ensure that the database was being used as efficiently as possible. and so it boiled down to one question, ***after one player makes a move, how is the other player's device notified?***
 
-Firebase has that functionality which allow the client to be notified of and receive data in a rather efficient manner. They explain it in high detail on their [site](https://firebase.google.com/docs/firestore/query-data/listen), so I'm only going to touch on its functionality briefly. Basically, the client creates a listener which is essentially a callback that the sdk executes when there is new data available on the database. Over on the database it will create a process which monitors our specific query to see if there is any new data available. The only data that is sent to the client is data that has been mutated.
+Firebase has functionality which allows the client to be notified of and receive data in a rather efficient manner. They explain it in high detail on their [site](https://firebase.google.com/docs/firestore/query-data/listen), so I'm only going to touch on its functionality briefly. Basically, the client creates a listener which is essentially a callback that the sdk executes when there is new data available on the database. Over on the database it will create a process which monitors our specific query to see if there is any new data available. The only data that is sent to the client is data that has been mutated.
 
 ```swift
 let listener = FirebaseReference(.Game).document(self.game.id).addSnapshotListener
 ```
 
-Thus, creating a snapshot listener bounds it to listen to the document. **It is important that you keep ahold of the listener object**. Once we are done with the game, and this is straight from the site, "You must detach your listener so that your event callbacks stop getting called. This allows the client to stop using bandwidth to receive updates". I might be going into too much detail, so I'll just [link](https://firebase.google.com/docs/firestore/query-data/listen) where you can read all this for yourself if interested.
+Thus, creating a snapshot listener binds it to listen to the document. **It is important that you keep ahold of the listener object**. Once we are done with the game, and this is straight from the site, "You must detach your listener so that your event callbacks stop getting called. This allows the client to stop using bandwidth to receive updates". I might be going into too much detail, so I'll just [link](https://firebase.google.com/docs/firestore/query-data/listen) where you can read all this for yourself if interested.
 
 I'm going to show the whole function below because it's one of the more significant ones used in the game, and the logic behind it is important.
 
@@ -457,6 +456,8 @@ func listenForGameChanges() {
 }
 ```
 
+<br>
+
 ### Potential problems - and how to avoid
 #### Rematch
 The game finishes. Both players press rematch at the same time. We must ensure they each modify only one value: whether they are cleared for the next game.
@@ -464,7 +465,7 @@ The game finishes. Both players press rematch at the same time. We must ensure t
 FirebaseReference(.Game).document(self.game.id).updateData
 ```
 
-When the game ends, the value of waitForResetPlayer1 and waitForResetPlayer2 is set to true for each player **locally**. When each player selects rematch, they locally clear themselves to play a new game, and then update that value in the database. Now imagine both players press rematch at the same time.  A race condition occurs in the database. Both players want the database to be set to match their local game values, but the values are at odds with each other. This is one instance where it was incredibly important to only modify a specific value, and not set all the values in the database.
+When the game ends, the value of waitForResetPlayer1 and waitForResetPlayer2 is set to true for each player **locally**. When each player selects the rematch button at the end of their game, they locally clear themselves to play a new game, and then update that value in the database. Now imagine both players press rematch at the same time.  A race condition occurs in the database. Both players want the database to be set to match their local game values, but the values are at odds with each other. This is one instance where it was incredibly important to only modify a specific value, and not set all the values in the database.
 ```swift
 func resultAlert(title: String) {
     let ac = UIAlertController(title: title, message: nil, preferredStyle: .alert)
@@ -482,11 +483,16 @@ func resultAlert(title: String) {
 }
 ```
 At this point you might have realized my love for the ternary operator :)
+
+<br>
+
 #### Snapshot listener
 Short and sweet (but important): remove the snapshot listener if the client shouldn't be getting updates on data. For other applications, where data might be [updated several times in the background without the client needing it](https://firebase.google.com/docs/firestore/query-data/listen) or using it, it might be beneficial to remove the listener and then retrieve it when the client returns to the application.
 ```swift
 self.Listener.remove()
 ```
+<br>
+<br>
 
 ## Friends
 As you'll see if you play the game, the user has the ability to add friends, join friends with open games, and change their own name. To enable this functionality, there must be a method by which we store this data such that no errors occur. Using a UUID(Universally unique identifier) we can identify players regardless if their name has changed.
@@ -512,7 +518,7 @@ class User: Codable { // struct
     }
 }
 ```
-You'll note above that I store both the user's name and their UUID, even though I said I would only use their UUID to track them. This is because if they change their name, I need to know what it was before, so that I can alert the user that their friend is now using a different alias. This way, we get some cool functionality when we check our friends list, here is an example (note that once the available friends list is refreshed, the friends new alias is stored.
+You'll note above that I store both the user's name and their UUID, even though I said I would only use their UUID to track them. This is because if they change their name, I need to know what it was before, so that I can alert the user that their friend is now using a different alias. This way, we get some cool functionality when we check our friends list, here is an example (note that once the available friends list is refreshed, the friends' new alias is stored.
 
 <p align="center">
   <img width="320" src="https://i.imgur.com/Us49Wfn.png">
@@ -529,7 +535,7 @@ You'll note above that I store both the user's name and their UUID, even though 
 ## Concluding thoughts
 Feature currently in development:
 * Notifications
-When two people play a game and one user enters the background while the other makes a move, the app will still function. The user can reopen the app and the will see the other players move. I am in the process of adding a notification so that the players are notified that their opponent made a move while the app wasn't open.
+When two people play a game and one user enters the background while the other makes a move, the app will still function. The user can reopen the app and they will see the other players move. I am in the process of adding a notification so that the players are notified that their opponent made a move while the app wasn't open.
 
 
 To do list:
@@ -537,7 +543,9 @@ To do list:
 * Add functionality to play multiple games at once, essentially a lobby with current games with friends
 * Improve code (remove the bugs that haunt me)
 
-I hope this gave you some insight into what went into making an app which seems so simple at first site, and for people looking to develop something similar I truly hope this Information benefited you.
+I hope this gave you some insight into what went into making an app which seems so simple at first, and for people looking to develop something similar I truly hope this Information benefited you.
 #
+
+Find a friend, try the game! If you have any question, advice, or need to reach out for any reason, feel free: ethanb@nyu.edu
 
 <a href="https://apps.apple.com/us/app/tic-tac-toe-modern/id1641960233?itsct=apps_box_badge&amp;itscg=30200" style="display: inline-block; overflow: hidden; border-radius: 13px; width: 250px; height: 83px;"><img src="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/en-us?size=250x83&amp;releaseDate=1661558400&h=67b831a8083db7c1e8ade56ea92326b9" alt="Download on the App Store" style="border-radius: 13px; width: 250px; height: 83px;"></a>
